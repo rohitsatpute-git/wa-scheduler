@@ -2,6 +2,7 @@ import { bus } from './bus.js';
 import { config } from './config.js';
 import { pool } from './db.js';
 import { logger } from './logger.js';
+import { ensureSeries } from './series.js';
 import { sessions } from './wa/sessionManager.js';
 
 /**
@@ -80,6 +81,9 @@ async function tick() {
       await recoverStale();
       const free = config.sendConcurrency - active.size;
       if (free > 0) for (const m of await claim(free)) start(m);
+      // Repeating messages: once an occurrence is sending, skipped or failed, schedule the next.
+      // Not awaited: writing an AI message can take a few seconds.
+      void ensureSeries().catch((err) => logger.error({ err }, 'series check failed'));
     } while (rerun && !stopping);
   } catch (err) {
     logger.error({ err }, 'scheduler tick failed');
@@ -111,12 +115,20 @@ async function claim(limit: number) {
   return rows;
 }
 
-/** Requeue 'sending' rows abandoned by a process that crashed or was killed mid-send. */
+/**
+ * Requeue 'sending' rows abandoned by a process that crashed or was killed mid-send. One that is
+ * long past its send time (the server was down) is closed instead of going out hours late.
+ */
 async function recoverStale() {
+  const late = `m.send_at < now() - interval '${MISSED_WINDOW}'`;
   const { rows } = await pool.query<{ id: string; user_id: string; status: string }>(
     `update scheduled_messages m set
-        status = case when m.attempts < $2 then 'retrying' when ${ANY_DELIVERED} then 'partial' else 'failed' end,
-        next_attempt_at = now(), last_error = 'Interrupted while sending', locked_at = null, updated_at = now()
+        status = case when m.attempts < $2 and not ${late} then 'retrying'
+                      when ${ANY_DELIVERED} then 'partial' else 'failed' end,
+        next_attempt_at = now(),
+        last_error = case when ${late} then 'Missed the send window while the server was down'
+                          else 'Interrupted while sending' end,
+        locked_at = null, updated_at = now()
       where m.status = 'sending'
         and coalesce(m.locked_at, m.updated_at) < now() - interval '${STALE_AFTER}'
         and not (m.id = any($1::uuid[]))

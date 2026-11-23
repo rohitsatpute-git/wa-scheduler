@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { MessageActions } from '../components/MessageActions'
 import { DeliveryBadge, MessageBadge } from '../components/StatusBadge'
+import { SeriesLine } from '../components/SeriesLine'
 import { contactLabel, formatDateTime } from '../format'
 
 export default function MessageDetail() {
@@ -25,6 +26,7 @@ export default function MessageDetail() {
         <MessageBadge status={m.status} />
       </div>
       <p className="muted small">Timezone: {m.timezone}</p>
+      {m.seriesId && m.series && <SeriesLine seriesId={m.seriesId} series={m.series} occurrence={m.occurrence} />}
       {m.lastError && <p className="error">{m.lastError}</p>}
 
       <div className="card">

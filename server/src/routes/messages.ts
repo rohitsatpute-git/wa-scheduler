@@ -18,7 +18,7 @@ const EDITABLE = ['scheduled', 'retrying', 'failed'];
 const CANCELLABLE = ['scheduled', 'retrying', 'sending'];
 const UPCOMING = ['scheduled', 'retrying', 'sending'];
 
-const isTimeZone = (tz: string) => {
+export const isTimeZone = (tz: string) => {
   try {
     new Intl.DateTimeFormat('en', { timeZone: tz });
     return true;
@@ -45,7 +45,7 @@ const messageSchema = z.object({
 type MessageInput = z.infer<typeof messageSchema>;
 
 /** Recipients must be the user's own contacts (ban-risk policy). Returns jid -> name. */
-async function resolveRecipients(client: pg.PoolClient, uid: string, jids: string[]) {
+export async function resolveRecipients(client: pg.PoolClient, uid: string, jids: string[]) {
   const { rows } = await client.query<{ jid: string; name: string | null }>(
     'select jid, name from contacts where user_id = $1 and jid = any($2)',
     [uid, jids],
@@ -62,7 +62,7 @@ async function insertRecipients(client: pg.PoolClient, messageId: string, rows: 
   );
 }
 
-async function inTransaction<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+export async function inTransaction<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {
     await client.query('begin');
@@ -83,6 +83,9 @@ const RECIPIENT_JOIN = `left join contacts c on c.user_id = m.user_id and c.jid 
 
 const LIST_COLUMNS = `
   m.id, m.body, m.send_at as "sendAt", m.timezone, m.status, m.last_error as "lastError",
+  m.series_id as "seriesId", m.occurrence_index as "occurrence",
+  (select json_build_object('days', s.days, 'status', s.status, 'mode', s.body_mode, 'count', cardinality(s.bodies))
+     from message_series s where s.id = m.series_id) as series,
   (select coalesce(json_agg(coalesce(${RECIPIENT_NAME}, '+' || split_part(r.contact_jid, '@', 1))
                             order by ${RECIPIENT_NAME} nulls last), '[]')
      from message_recipients r ${RECIPIENT_JOIN}

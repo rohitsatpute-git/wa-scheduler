@@ -9,10 +9,13 @@
     "typecheck": "tsc -p . --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "@google/genai": "^3.0.0",
     "@whiskeysockets/baileys": "7.0.0-rc14",
     "cookie-parser": "^1.4.7",
     "express": "^5.3.0",
     "jsonwebtoken": "^9.0.3",
+    "openai": "^7.53.0",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
     "pino-pretty": "^13.2.0",

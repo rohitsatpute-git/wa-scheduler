@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 *.log
+# Android signing: keep the upload key and its passwords out of git (back them up somewhere safe).
+*.jks
+*.keystore
+keystore.properties

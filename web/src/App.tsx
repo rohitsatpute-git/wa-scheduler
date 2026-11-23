@@ -2,10 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom'
 import { api, ApiError, type Me } from './api'
 import { SessionBadge } from './components/StatusBadge'
+import AutoReply from './pages/AutoReply'
+import AutoReplyStats from './pages/AutoReplyStats'
 import Compose from './pages/Compose'
 import Connect from './pages/Connect'
 import MessageDetail from './pages/MessageDetail'
 import Messages from './pages/Messages'
+import { APP_NAME, serverUrl } from './platform'
 import { reconnectSocket, useRealtime } from './socket'
 
 export function useMe() {
@@ -28,6 +31,9 @@ export default function App() {
         <Route path="messages/new" element={<Compose />} />
         <Route path="messages/:id" element={<MessageDetail />} />
         <Route path="messages/:id/edit" element={<Compose />} />
+        <Route path="series/:seriesId/edit" element={<Compose />} />
+        <Route path="auto-reply" element={<AutoReply />} />
+        <Route path="auto-reply/stats" element={<AutoReplyStats />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -54,26 +60,54 @@ function Layout({ me }: { me: Me }) {
       navigate('/connect')
     },
   })
+  const deleteAccount = useMutation({
+    mutationFn: api.deleteAccount,
+    onSuccess: () => {
+      qc.clear()
+      reconnectSocket()
+      navigate('/connect')
+    },
+  })
+  const confirmDelete = () =>
+    confirm(
+      'Delete your account?\n\nThis unlinks WhatsApp and permanently deletes your contacts, scheduled and repeating messages, history and auto-reply data. It cannot be undone.',
+    ) && deleteAccount.mutate()
   const status = me.whatsapp.status
 
   return (
     <>
       <header className="topbar">
         <Link to="/" className="brand">
-          WA Scheduler
+          {APP_NAME}
         </Link>
         <nav>
           <NavLink to="/" end>
             Messages
           </NavLink>
           <NavLink to="/messages/new">New message</NavLink>
+          <NavLink to="/auto-reply" end>
+            Auto-reply
+          </NavLink>
+          <NavLink to="/auto-reply/stats">Dashboard</NavLink>
         </nav>
         <div className="account">
           <SessionBadge status={status} />
           <span className="muted">{me.user.name ?? `+${me.user.phone}`}</span>
-          <button className="link" onClick={() => logout.mutate()} disabled={logout.isPending}>
-            Log out
-          </button>
+          <details className="account-menu">
+            <summary aria-label="Account menu">⋯</summary>
+            <div className="menu">
+              <button className="link" onClick={() => logout.mutate()} disabled={logout.isPending}>
+                Log out
+              </button>
+              <a href={serverUrl('/privacy')} target="_blank" rel="noreferrer">
+                Privacy policy
+              </a>
+              <button className="link danger" onClick={confirmDelete} disabled={deleteAccount.isPending}>
+                {deleteAccount.isPending ? 'Deleting…' : 'Delete account'}
+              </button>
+              {deleteAccount.error && <span className="error small">{deleteAccount.error.message}</span>}
+            </div>
+          </details>
         </div>
       </header>
 

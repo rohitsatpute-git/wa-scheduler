@@ -13,6 +13,20 @@ const env = z
     SEND_GAP_MAX_MS: z.coerce.number().int().nonnegative().default(6000),
     SEND_CONCURRENCY: z.coerce.number().int().positive().default(20),
     POLL_INTERVAL_MS: z.coerce.number().int().positive().default(5000),
+    // AI auto-reply is available only when a key for the chosen provider is set.
+    ANTHROPIC_API_KEY: z.string().optional().transform((v) => v?.trim() || undefined),
+    OPENAI_API_KEY: z.string().optional().transform((v) => v?.trim() || undefined),
+    GEMINI_API_KEY: z.string().optional().transform((v) => v?.trim() || undefined),
+    AI_PROVIDER: z
+      .string()
+      .optional()
+      .transform((v) => v?.trim() || undefined)
+      .pipe(z.enum(['anthropic', 'openai', 'gemini']).optional()),
+    AI_MODEL: z.string().optional().transform((v) => v?.trim() || undefined),
+    // Origins allowed to call the API from another origin: the Android app's WebView.
+    APP_ORIGINS: z.string().default('https://localhost,capacitor://localhost'),
+    // Shown on the privacy policy page (required for a Play Store listing).
+    CONTACT_EMAIL: z.string().optional().transform((v) => v?.trim() || undefined),
   })
   .safeParse(process.env);
 
@@ -34,4 +48,29 @@ export const config = {
   sendGapMaxMs: Math.max(env.data.SEND_GAP_MIN_MS, env.data.SEND_GAP_MAX_MS),
   sendConcurrency: env.data.SEND_CONCURRENCY,
   pollIntervalMs: env.data.POLL_INTERVAL_MS,
+  ai: aiConfig(),
+  appOrigins: env.data.APP_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean),
+  contactEmail: env.data.CONTACT_EMAIL,
 };
+
+/**
+ * Which AI provider writes auto-replies. AI_PROVIDER picks one explicitly; otherwise whichever key
+ * is set wins (Anthropic, then OpenAI, then Gemini). Null means auto-reply is unavailable.
+ */
+function aiConfig() {
+  const e = env.data!;
+  const provider =
+    e.AI_PROVIDER ??
+    (e.ANTHROPIC_API_KEY ? 'anthropic' : e.OPENAI_API_KEY ? 'openai' : e.GEMINI_API_KEY ? 'gemini' : null);
+  if (provider === 'anthropic' && e.ANTHROPIC_API_KEY) {
+    return { provider, apiKey: e.ANTHROPIC_API_KEY, model: e.AI_MODEL ?? 'claude-opus-5-5' } as const;
+  }
+  if (provider === 'openai' && e.OPENAI_API_KEY) {
+    return { provider, apiKey: e.OPENAI_API_KEY, model: e.AI_MODEL ?? 'gpt-6-luna' } as const;
+  }
+  if (provider === 'gemini' && e.GEMINI_API_KEY) {
+    // Free tier on Google AI Studio keys (free-tier data may be used by Google to improve its products).
+    return { provider, apiKey: e.GEMINI_API_KEY, model: e.AI_MODEL ?? 'gemini-3.5-flash-lite' } as const;
+  }
+  return null;
+}

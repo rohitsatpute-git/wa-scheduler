@@ -3,3 +3,5 @@
 **/.env
 **/*.log
 .git
+web/android
+web/assets
