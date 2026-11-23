@@ -25,6 +25,19 @@ services:
         sync: false
       - key: MAX_RECIPIENTS
         value: "50"
+      # Shown on /privacy (the Play Store privacy policy URL). Use an inbox you check.
+      - key: CONTACT_EMAIL
+        sync: false
+      # The Android app's WebView origin, allowed to call the API with its bearer token.
+      - key: APP_ORIGINS
+        value: https://localhost,capacitor://localhost
+      # Optional: enables AI auto-reply. Set one key; leave all empty to keep the feature off.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
 
 databases:
   - name: wa-scheduler-db

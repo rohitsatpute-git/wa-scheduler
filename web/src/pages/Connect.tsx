@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
+import { APP_NAME, isNative } from '../platform'
 import { reconnectSocket, socket } from '../socket'
 
 type Mode = 'qr' | 'phone'
@@ -12,7 +13,9 @@ export default function Connect() {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const [accepted, setAccepted] = useState(false)
-  const [mode, setMode] = useState<Mode>('qr')
+  // On a phone you can't scan a QR code shown on that same phone, so the app starts with the pairing code.
+  const [mode, setMode] = useState<Mode>(isNative ? 'phone' : 'qr')
+  const [copied, setCopied] = useState(false)
   const [phone, setPhone] = useState('')
   const [phase, setPhase] = useState<Phase>('idle')
   const [qr, setQr] = useState<string | null>(null)
@@ -78,7 +81,7 @@ export default function Connect() {
 
   return (
     <div className="connect">
-      <h1>WA Scheduler</h1>
+      <h1>{APP_NAME}</h1>
       <p className="muted">Link your WhatsApp to schedule messages to your contacts and groups.</p>
 
       {phase === 'idle' || phase === 'starting' ? (
@@ -101,6 +104,12 @@ export default function Connect() {
               Use pairing code
             </button>
           </div>
+
+          {isNative && mode === 'qr' && (
+            <p className="muted small">
+              The QR code is for linking from another phone. To link the WhatsApp on this phone, use the pairing code.
+            </p>
+          )}
 
           {mode === 'phone' && (
             <label className="field">
@@ -147,7 +156,20 @@ export default function Connect() {
           ) : (
             <>
               {code ? (
-                <p className="pairing-code">{code.match(/.{1,4}/g)?.join('-')}</p>
+                <>
+                  <p className="pairing-code">{code.match(/.{1,4}/g)?.join('-')}</p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void navigator.clipboard
+                        ?.writeText(code)
+                        .then(() => setCopied(true))
+                        .catch(() => setCopied(false))
+                    }
+                  >
+                    {copied ? '✓ Copied' : 'Copy code'}
+                  </button>
+                </>
               ) : (
                 <p className="muted">Requesting pairing code…</p>
               )}
@@ -159,6 +181,7 @@ export default function Connect() {
                 <li>
                   Tap <strong>Link with phone number instead</strong> and enter this code
                 </li>
+                {isNative && <li>Come back to this app; it signs you in automatically</li>}
               </ol>
             </>
           )}

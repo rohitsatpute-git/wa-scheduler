@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Message Scheduler</string>
+    <string name="title_activity_main">Message Scheduler</string>
+    <string name="package_name">app.messagescheduler</string>
+    <string name="custom_url_scheme">app.messagescheduler</string>
+</resources>

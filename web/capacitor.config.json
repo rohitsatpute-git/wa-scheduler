@@ -1,0 +1,11 @@
+{
+  "appId": "app.messagescheduler",
+  "appName": "Message Scheduler",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SystemBars": { "insetsHandling": "css" }
+  }
+}

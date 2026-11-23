@@ -1,6 +1,7 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
 import { COOKIE, verifyToken } from './auth.js';
+import { config } from './config.js';
 import { bus } from './bus.js';
 import { sessions } from './wa/sessionManager.js';
 
@@ -17,10 +18,14 @@ function readCookie(header: string | undefined, name: string) {
  * Browsers only listen; all writes go through the REST API.
  */
 export function attachRealtime(httpServer: HttpServer) {
-  const io = new Server(httpServer);
+  // The Android app connects from its own origin and passes its token in `auth`.
+  const io = new Server(httpServer, { cors: { origin: config.appOrigins } });
 
   io.on('connection', (socket) => {
-    const userId = verifyToken(readCookie(socket.handshake.headers.cookie, COOKIE));
+    const authToken = (socket.handshake.auth as { token?: unknown } | undefined)?.token;
+    const userId = verifyToken(
+      typeof authToken === 'string' ? authToken : readCookie(socket.handshake.headers.cookie, COOKIE),
+    );
     if (userId) void socket.join(`user:${userId}`);
 
     socket.on('link:subscribe', ({ linkId, secret }: { linkId?: string; secret?: string } = {}) => {
@@ -44,6 +49,8 @@ export function attachRealtime(httpServer: HttpServer) {
     io.to(`user:${userId}`).emit('message:status', { messageId, status }),
   );
   bus.on('delivery:update', (userId, update) => io.to(`user:${userId}`).emit('delivery:update', update));
+  bus.on('autoreply:sent', (userId, reply) => io.to(`user:${userId}`).emit('autoreply:sent', reply));
+  bus.on('autoreply:skipped', (userId, skip) => io.to(`user:${userId}`).emit('autoreply:skipped', skip));
 
   return io;
 }

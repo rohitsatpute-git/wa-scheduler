@@ -5,9 +5,12 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
   isLidUser,
+  isPnUser,
   jidNormalizedUser,
   makeCacheableSignalKeyStore,
+  normalizeMessageContent,
   proto,
+  type BaileysEventMap,
   type ConnectionState,
   type Contact,
   type WAMessageUpdate,
@@ -259,6 +262,7 @@ class SessionManager {
     sock.ev.on('contacts.upsert', guard((contacts: Contact[]) => this.saveContacts(s, contacts, 'addressbook')));
     sock.ev.on('contacts.update', guard((contacts: Partial<Contact>[]) => this.saveContacts(s, contacts, 'push')));
     sock.ev.on('messages.update', guard((updates: WAMessageUpdate[]) => this.onMessageUpdates(s, updates)));
+    sock.ev.on('messages.upsert', guard((e: BaileysEventMap['messages.upsert']) => this.onMessagesUpsert(s, e)));
   }
 
   private async onConnectionUpdate(s: Session, sock: WASocket, u: Partial<ConnectionState>) {
@@ -398,6 +402,35 @@ class SessionManager {
          updated_at = now()`,
       [s.userId, entries.map(([jid]) => jid), entries.map(([, v]) => v.name), entries.map(([, v]) => v.rank)],
     );
+  }
+
+  /**
+   * Live 1:1 text messages go on the bus (auto-reply listens). 'notify' covers messages received and
+   * messages the user typed on another device; our own sends arrive as 'append' and are skipped.
+   */
+  private async onMessagesUpsert(s: Session, { messages, type }: BaileysEventMap['messages.upsert']) {
+    if (!s.userId || type !== 'notify') return;
+    const self = s.sock?.user?.id ? jidNormalizedUser(s.sock.user.id) : null;
+    for (const m of messages) {
+      const { remoteJid, remoteJidAlt, id, fromMe } = m.key;
+      if (!remoteJid || !id) continue;
+      // Match contacts by phone-number JID; skips groups, broadcasts, channels and unknown LIDs.
+      const raw = isPnUser(remoteJid) ? remoteJid : isPnUser(remoteJidAlt) ? remoteJidAlt : null;
+      const chatJid = raw ? jidNormalizedUser(raw) : null;
+      if (!chatJid || chatJid === self) continue;
+      const content = normalizeMessageContent(m.message);
+      const text = (content?.conversation ?? content?.extendedTextMessage?.text)?.trim();
+      if (!text) continue;
+      const ts = m.messageTimestamp;
+      const seconds = typeof ts === 'number' ? ts : (ts?.toNumber() ?? 0);
+      bus.emit('chat:message', s.userId, {
+        chatJid,
+        fromMe: !!fromMe,
+        text,
+        waMessageId: id,
+        sentAt: seconds ? new Date(seconds * 1000) : new Date(),
+      });
+    }
   }
 
   private async onMessageUpdates(s: Session, updates: WAMessageUpdate[]) {

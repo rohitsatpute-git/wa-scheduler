@@ -10,6 +10,15 @@ export interface DeliveryUpdate {
   error?: string | null;
 }
 
+/** A live 1:1 text message, received or typed by the user on their phone. */
+export interface ChatMessage {
+  chatJid: string;
+  fromMe: boolean;
+  text: string;
+  waMessageId: string;
+  sentAt: Date;
+}
+
 /** In-process event bus. Realtime (Socket.IO) subscribes and forwards to browsers. */
 export const bus = new EventEmitter<{
   'link:qr': [linkId: string, qr: string];
@@ -19,4 +28,7 @@ export const bus = new EventEmitter<{
   'session:status': [userId: string, status: SessionStatus];
   'message:status': [userId: string, messageId: string, status: string];
   'delivery:update': [userId: string, update: DeliveryUpdate];
+  'chat:message': [userId: string, message: ChatMessage];
+  'autoreply:sent': [userId: string, reply: { chatJid: string; text: string }];
+  'autoreply:skipped': [userId: string, skip: { chatJid: string; reason: string }];
 }>();

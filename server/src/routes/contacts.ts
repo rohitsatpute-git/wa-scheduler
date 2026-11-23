@@ -11,7 +11,7 @@ contactsRouter.get('/', async (req, res) => {
   const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
   const digits = search.replace(/\D/g, '');
   const { rows } = await pool.query(
-    `select jid, name, is_group as "isGroup", manual from contacts
+    `select jid, name, is_group as "isGroup", manual, auto_reply as "autoReply" from contacts
      where user_id = $1
        and ($2 = '' or name ilike '%' || $2 || '%' or ($3 <> '' and jid like '%' || $3 || '%'))
      order by is_group desc, name nulls last, jid
@@ -52,7 +52,7 @@ contactsRouter.post('/', async (req, res) => {
        name = case when excluded.name_rank >= contacts.name_rank then excluded.name else contacts.name end,
        name_rank = greatest(contacts.name_rank, excluded.name_rank),
        updated_at = now()
-     returning jid, name, is_group as "isGroup", manual`,
+     returning jid, name, is_group as "isGroup", manual, auto_reply as "autoReply"`,
     [userId(res), result.jid, parsed.data.name || null, parsed.data.name ? 4 : 0],
   );
   res.status(201).json(rows[0]);
